@@ -5,6 +5,16 @@ from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
+# Root endpoint
+@app.get("/")
+def root():
+    return {"message": "Backend is live!"}
+
+# Health check endpoint
+@app.get("/health")
+def health_check():
+    return {"status": "ok"}
+
 # Allow frontend to access backend
 app.add_middleware(
     CORSMiddleware,
