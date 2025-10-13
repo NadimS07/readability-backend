@@ -1,53 +1,41 @@
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 import textstat
 
-app = FastAPI(title="Readability API", version="1.0")
+app = FastAPI()
 
-# -----------------------------
-# Pydantic model for request
-# -----------------------------
-class TextRequest(BaseModel):
-    text: str
+# ✅ Enable CORS so frontend can talk to backend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins (for testing)
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-# -----------------------------
-# Root endpoint
-# -----------------------------
 @app.get("/")
-async def root():
+def read_root():
     return {"message": "Readability API is running"}
 
-# -----------------------------
-# Health endpoint
-# -----------------------------
 @app.get("/health")
-async def health():
+def health_check():
     return {"status": "ok"}
 
-# -----------------------------
-# Readability endpoint
-# -----------------------------
 @app.post("/analyze")
-async def analyze_text(request: TextRequest):
-    try:
-        text = request.text
-        if not text:
-            raise HTTPException(status_code=400, detail="Text cannot be empty")
+async def analyze_text(request: Request):
+    data = await request.json()
+    text = data.get("text", "")
+    if not text:
+        return {"error": "No text provided"}
 
-        readability = {
-            "flesch_reading_ease": textstat.flesch_reading_ease(text),
-            "smog_index": textstat.smog_index(text),
-            "flesch_kincaid_grade": textstat.flesch_kincaid_grade(text),
-            "coleman_liau_index": textstat.coleman_liau_index(text),
-            "automated_readability_index": textstat.automated_readability_index(text),
-            "dale_chall_readability_score": textstat.dale_chall_readability_score(text),
-            "difficult_words": textstat.difficult_words(text),
-            "linsear_write_formula": textstat.linsear_write_formula(text),
-            "gunning_fog": textstat.gunning_fog(text),
-            "text_standard": textstat.text_standard(text)
-        }
+    results = {
+        "flesch_reading_ease": textstat.flesch_reading_ease(text),
+        "gunning_fog_index": textstat.gunning_fog(text),
+        "smog_index": textstat.smog_index(text),
+        "automated_readability_index": textstat.automated_readability_index(text),
+        "coleman_liau_index": textstat.coleman_liau_index(text),
+        "linsear_write_formula": textstat.linsear_write_formula(text),
+        "dale_chall_score": textstat.dale_chall_readability_score(text),
+    }
 
-        return {"readability": readability}
-    
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    return results
