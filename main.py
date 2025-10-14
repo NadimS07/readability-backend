@@ -10,7 +10,7 @@ import difflib
 # -------------------------------------------------------------------
 app = FastAPI(
     title="Readability, Tone & Plagiarism Analyzer API",
-    version="3.1.0",
+    version="3.2.0",
     description="AI-powered readability, tone, and plagiarism analysis for English text.",
 )
 
@@ -54,7 +54,6 @@ def analyze_readability(data: InputText):
     if not text:
         return {"error": "Text cannot be empty."}
 
-    # Core readability metrics
     scores = {
         "flesch_reading_ease": textstat.flesch_reading_ease(text),
         "gunning_fog_index": textstat.gunning_fog(text),
@@ -66,12 +65,32 @@ def analyze_readability(data: InputText):
     avg = (scores["flesch_reading_ease"] + 206 - scores["gunning_fog_index"]) / 2
 
     summary = {
-        "overall_readability": "Very Difficult" if avg < 30 else "Moderate" if avg < 70 else "Easy",
-        "education_level": "Graduate / Research" if avg < 30 else "College" if avg < 70 else "High School",
-        "sentence_complexity": "Very Complex" if scores["gunning_fog_index"] > 18 else "Moderate",
-        "word_simplicity": "Advanced Vocabulary" if scores["dale_chall_score"] > 9 else "Moderate Vocabulary",
-        "insight": "Your text is highly complex and challenging for general readers." if avg < 30 else "Your text is moderately readable and accessible to most readers." if avg < 70 else "Your text is clear and easy to understand.",
-        "suggestion": "Break long sentences and use simpler words for better comprehension." if avg < 30 else "Keep your sentences concise and well-balanced." if avg < 70 else "Excellent readability! Maintain this clarity in your writing.",
+        "overall_readability": (
+            "Very Difficult" if avg < 30 else "Moderate" if avg < 70 else "Easy"
+        ),
+        "education_level": (
+            "Graduate / Research" if avg < 30 else "College" if avg < 70 else "High School"
+        ),
+        "sentence_complexity": (
+            "Very Complex" if scores["gunning_fog_index"] > 18 else "Moderate"
+        ),
+        "word_simplicity": (
+            "Advanced Vocabulary" if scores["dale_chall_score"] > 9 else "Moderate Vocabulary"
+        ),
+        "insight": (
+            "Your text is highly complex and challenging for general readers."
+            if avg < 30
+            else "Your text is moderately readable and accessible to most readers."
+            if avg < 70
+            else "Your text is clear and easy to understand."
+        ),
+        "suggestion": (
+            "Break long sentences and use simpler words for better comprehension."
+            if avg < 30
+            else "Keep your sentences concise and well-balanced."
+            if avg < 70
+            else "Excellent readability! Maintain this clarity in your writing."
+        ),
     }
 
     return {"summary": summary, "raw_scores": scores}
@@ -124,6 +143,7 @@ def check_plagiarism(data: InputText):
     if not text:
         return {"error": "Text cannot be empty."}
 
+    # Reference dataset for similarity comparison
     reference_texts = [
         "Artificial intelligence is transforming how people work, learn, and communicate.",
         "The quick brown fox jumps over the lazy dog.",
@@ -134,15 +154,17 @@ def check_plagiarism(data: InputText):
     max_similarity = 0
     for ref in reference_texts:
         similarity = difflib.SequenceMatcher(None, text.lower(), ref.lower()).ratio()
-        if similarity > max_similarity:
-            max_similarity = similarity
+        max_similarity = max(max_similarity, similarity)
 
     plagiarism_score = round(max_similarity * 100, 2)
+
     summary = {
         "plagiarism_score": f"{plagiarism_score}%",
-        "feedback": "High similarity detected. Consider rephrasing or citing sources."
-        if plagiarism_score > 60
-        else "No significant plagiarism detected. Your content appears original.",
+        "feedback": (
+            "⚠️ High similarity detected. Consider rephrasing or citing sources."
+            if plagiarism_score > 60
+            else "✅ No significant plagiarism detected. Your content appears original."
+        ),
     }
 
     return {"summary": summary, "similarity_reference": plagiarism_score}
