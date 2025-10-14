@@ -1,32 +1,32 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import textstat
 from textblob import TextBlob
 import difflib
+import logging
 
 # -------------------------------------------------------------------
 # 🚀 Initialize FastAPI App
 # -------------------------------------------------------------------
 app = FastAPI(
     title="Readability, Tone & Plagiarism Analyzer API",
-    version="3.2.0",
+    version="3.3.0",
     description="AI-powered readability, tone, and plagiarism analysis for English text.",
 )
 
 # -------------------------------------------------------------------
-# 🌐 Enable CORS (Frontend Access for Vercel & Local)
+# 🧾 Enable Logging (for Railway Logs)
 # -------------------------------------------------------------------
-origins = [
-    "http://localhost:3000",
-    "http://127.0.0.1:8000",
-    "https://readability-nadim.vercel.app",
-    "https://readability-backend-production.up.railway.app"
-]
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
+# -------------------------------------------------------------------
+# 🌐 Enable CORS (for Vercel + Local + Debug)
+# -------------------------------------------------------------------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["*"],  # temporarily open for full access
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -43,13 +43,15 @@ class InputText(BaseModel):
 # -------------------------------------------------------------------
 @app.get("/health")
 def health_check():
+    logger.info("Health check accessed ✅")
     return {"status": "ok"}
 
 # -------------------------------------------------------------------
 # 📘 1️⃣ Readability Analyzer
 # -------------------------------------------------------------------
 @app.post("/analyze_readability")
-def analyze_readability(data: InputText):
+def analyze_readability(data: InputText, request: Request):
+    logger.info(f"📘 Readability request from {request.client.host}")
     text = data.text.strip()
     if not text:
         return {"error": "Text cannot be empty."}
@@ -99,7 +101,8 @@ def analyze_readability(data: InputText):
 # 💬 2️⃣ Tone Analyzer
 # -------------------------------------------------------------------
 @app.post("/analyze_tone")
-def analyze_tone(data: InputText):
+def analyze_tone(data: InputText, request: Request):
+    logger.info(f"💬 Tone request from {request.client.host}")
     text = data.text.strip()
     if not text:
         return {"error": "Text cannot be empty."}
@@ -138,12 +141,13 @@ def analyze_tone(data: InputText):
 # 🔍 3️⃣ Simple Plagiarism Checker
 # -------------------------------------------------------------------
 @app.post("/check_plagiarism")
-def check_plagiarism(data: InputText):
+def check_plagiarism(data: InputText, request: Request):
+    logger.info(f"🔍 Plagiarism request from {request.client.host}")
     text = data.text.strip()
     if not text:
+        logger.warning("⚠️ Empty text received in plagiarism endpoint.")
         return {"error": "Text cannot be empty."}
 
-    # Reference dataset for similarity comparison
     reference_texts = [
         "Artificial intelligence is transforming how people work, learn, and communicate.",
         "The quick brown fox jumps over the lazy dog.",
@@ -167,6 +171,7 @@ def check_plagiarism(data: InputText):
         ),
     }
 
+    logger.info(f"✅ Plagiarism analysis complete with score: {plagiarism_score}%")
     return {"summary": summary, "similarity_reference": plagiarism_score}
 
 # -------------------------------------------------------------------
@@ -174,4 +179,5 @@ def check_plagiarism(data: InputText):
 # -------------------------------------------------------------------
 @app.get("/")
 def root():
+    logger.info("Root route accessed 🌍")
     return {"message": "Readability, Tone & Plagiarism Analyzer API is running successfully!"}
