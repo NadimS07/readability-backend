@@ -7,26 +7,26 @@ import difflib
 import logging
 
 # -------------------------------------------------------------------
-# 🚀 Initialize FastAPI App
+# 🚀 Initialize App
 # -------------------------------------------------------------------
 app = FastAPI(
     title="Readability, Tone & Plagiarism Analyzer API",
-    version="3.3.0",
+    version="3.5.0",
     description="AI-powered readability, tone, and plagiarism analysis for English text.",
 )
 
 # -------------------------------------------------------------------
-# 🧾 Enable Logging (for Railway Logs)
+# 🧾 Logging Setup
 # -------------------------------------------------------------------
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("analyzer")
 
 # -------------------------------------------------------------------
-# 🌐 Enable CORS (for Vercel + Local + Debug)
+# 🌐 CORS Configuration
 # -------------------------------------------------------------------
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # temporarily open for full access
+    allow_origins=["*"],  # ✅ Keep open during testing
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -42,19 +42,19 @@ class InputText(BaseModel):
 # 🩺 Health Check
 # -------------------------------------------------------------------
 @app.get("/health")
-def health_check():
-    logger.info("Health check accessed ✅")
+def health():
     return {"status": "ok"}
 
 # -------------------------------------------------------------------
-# 📘 1️⃣ Readability Analyzer
+# 📘 Readability Analyzer
 # -------------------------------------------------------------------
 @app.post("/analyze_readability")
-def analyze_readability(data: InputText, request: Request):
-    logger.info(f"📘 Readability request from {request.client.host}")
+def analyze_readability(data: InputText):
     text = data.text.strip()
     if not text:
         return {"error": "Text cannot be empty."}
+    
+    logger.info("📘 Readability endpoint hit")
 
     scores = {
         "flesch_reading_ease": textstat.flesch_reading_ease(text),
@@ -67,45 +67,26 @@ def analyze_readability(data: InputText, request: Request):
     avg = (scores["flesch_reading_ease"] + 206 - scores["gunning_fog_index"]) / 2
 
     summary = {
-        "overall_readability": (
-            "Very Difficult" if avg < 30 else "Moderate" if avg < 70 else "Easy"
-        ),
-        "education_level": (
-            "Graduate / Research" if avg < 30 else "College" if avg < 70 else "High School"
-        ),
-        "sentence_complexity": (
-            "Very Complex" if scores["gunning_fog_index"] > 18 else "Moderate"
-        ),
-        "word_simplicity": (
-            "Advanced Vocabulary" if scores["dale_chall_score"] > 9 else "Moderate Vocabulary"
-        ),
-        "insight": (
-            "Your text is highly complex and challenging for general readers."
-            if avg < 30
-            else "Your text is moderately readable and accessible to most readers."
-            if avg < 70
-            else "Your text is clear and easy to understand."
-        ),
-        "suggestion": (
-            "Break long sentences and use simpler words for better comprehension."
-            if avg < 30
-            else "Keep your sentences concise and well-balanced."
-            if avg < 70
-            else "Excellent readability! Maintain this clarity in your writing."
-        ),
+        "overall_readability": "Very Difficult" if avg < 30 else "Moderate" if avg < 70 else "Easy",
+        "education_level": "Graduate / Research" if avg < 30 else "College" if avg < 70 else "High School",
+        "sentence_complexity": "Very Complex" if scores["gunning_fog_index"] > 18 else "Moderate",
+        "word_simplicity": "Advanced Vocabulary" if scores["dale_chall_score"] > 9 else "Moderate Vocabulary",
+        "insight": "Highly complex text." if avg < 30 else "Moderately readable." if avg < 70 else "Clear and easy to read.",
+        "suggestion": "Simplify structure and vocabulary." if avg < 30 else "Good balance." if avg < 70 else "Excellent readability.",
     }
 
     return {"summary": summary, "raw_scores": scores}
 
 # -------------------------------------------------------------------
-# 💬 2️⃣ Tone Analyzer
+# 💬 Tone Analyzer
 # -------------------------------------------------------------------
 @app.post("/analyze_tone")
-def analyze_tone(data: InputText, request: Request):
-    logger.info(f"💬 Tone request from {request.client.host}")
+def analyze_tone(data: InputText):
     text = data.text.strip()
     if not text:
         return {"error": "Text cannot be empty."}
+    
+    logger.info("💬 Tone endpoint hit")
 
     blob = TextBlob(text)
     polarity = blob.sentiment.polarity
@@ -122,31 +103,32 @@ def analyze_tone(data: InputText, request: Request):
         tone = "Highly Negative"
 
     feedback_map = {
-        "Highly Positive": "Your tone feels enthusiastic, confident, and optimistic.",
-        "Slightly Positive": "Your tone sounds warm and engaging.",
-        "Neutral": "Your tone is balanced, factual, and professional.",
+        "Highly Positive": "Your tone feels enthusiastic and optimistic.",
+        "Slightly Positive": "Your tone sounds warm and encouraging.",
+        "Neutral": "Your tone is balanced and factual.",
         "Slightly Negative": "Your tone feels cautious or mildly critical.",
-        "Highly Negative": "Your tone sounds strongly emotional or critical. Try softening phrases for balance.",
+        "Highly Negative": "Your tone sounds emotional or strongly critical.",
     }
 
-    summary = {
-        "dominant_tone": tone,
-        "confidence": f"{abs(polarity) * 100:.1f}%",
-        "feedback": feedback_map[tone],
+    return {
+        "summary": {
+            "dominant_tone": tone,
+            "confidence": f"{abs(polarity) * 100:.1f}%",
+            "feedback": feedback_map[tone],
+        },
+        "tone_value": polarity,
     }
-
-    return {"summary": summary, "tone_value": polarity}
 
 # -------------------------------------------------------------------
-# 🔍 3️⃣ Simple Plagiarism Checker
+# 🔍 Plagiarism Checker
 # -------------------------------------------------------------------
 @app.post("/check_plagiarism")
 def check_plagiarism(data: InputText, request: Request):
-    logger.info(f"🔍 Plagiarism request from {request.client.host}")
     text = data.text.strip()
     if not text:
-        logger.warning("⚠️ Empty text received in plagiarism endpoint.")
         return {"error": "Text cannot be empty."}
+    
+    logger.info(f"🔍 Plagiarism endpoint hit from {request.client.host}")
 
     reference_texts = [
         "Artificial intelligence is transforming how people work, learn, and communicate.",
@@ -171,13 +153,20 @@ def check_plagiarism(data: InputText, request: Request):
         ),
     }
 
-    logger.info(f"✅ Plagiarism analysis complete with score: {plagiarism_score}%")
+    logger.info(f"✅ Plagiarism Score: {plagiarism_score}%")
     return {"summary": summary, "similarity_reference": plagiarism_score}
+
+# -------------------------------------------------------------------
+# 🧠 OPTIONS handler for preflight (fixes browser block)
+# -------------------------------------------------------------------
+@app.options("/{rest_of_path:path}")
+def preflight_handler(rest_of_path: str):
+    logger.info(f"🕊️ CORS preflight for path: /{rest_of_path}")
+    return {"status": "CORS preflight OK"}
 
 # -------------------------------------------------------------------
 # 🌍 Root Route
 # -------------------------------------------------------------------
 @app.get("/")
 def root():
-    logger.info("Root route accessed 🌍")
     return {"message": "Readability, Tone & Plagiarism Analyzer API is running successfully!"}
